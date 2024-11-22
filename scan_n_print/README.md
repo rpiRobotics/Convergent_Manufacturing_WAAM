@@ -1,14 +1,12 @@
-# Weld
+# Scan-n-Print
 
 This folder includes all codes performing welding motion. 
-
-## Closed-loop Scan-n-Print
 
 ### Pre-request
 
 * Data curve
 * Robot definition files
-* Welding and scanning joint space trajectory [here](https://github.com/arminstitute/ARM-TEC-22-01-F-07/tree/main/redundancy_resolution)
+* Welding and scanning joint space trajectory [here](https://github.com/rpiRobotics/Convergent_Manufacturing_WAAM/tree/main/redundancy_resolution)
 
 ### Hardware requirements
 
