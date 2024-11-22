@@ -1,10 +1,13 @@
 import sys
+import matplotlib
 sys.path.append('../scan_tools/')
+from motoman_def import *
 from scan_utils import *
+from robotics_utils import *
 from lambda_calc import *
 from general_robotics_toolbox import *
 import open3d as o3d
-
+from sklearn.cluster import DBSCAN
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import colors
@@ -138,10 +141,10 @@ class ScanProcess():
         
         return pcd_combined
     
-    def pcd_register_mti(self,all_scan_points,rob_js_exe,rob_stamps,voxel_size=0.05,static_positioner_q=np.radians([-60,180]),use_calib=False,ph_param=None):
+    def pcd_register_mti(self,all_scan_points,rob_js_exe,rob_stamps,voxel_size=0.05,static_positioner_q=np.radians([-60,180]),flip=False,scanner='mti',use_calib=False,ph_param=None):
 
         pcd_combined = None
-        scan_N = len(rob_stamps) ## total scans
+        scan_N = len(rob_js_exe) ## total scans
         for scan_i in range(scan_N):
 
             if len(rob_js_exe[scan_i])<=6:
@@ -169,9 +172,17 @@ class ScanProcess():
                 T_origin = self.positioner.fwd(rob_js_exe[scan_i][6:],world=True).inv() # T_tabletool^world
             T_rob_positioner_top = T_origin*robt_T
 
-            scan_points=deepcopy(all_scan_points[scan_i])
-            scan_points = np.insert(scan_points,1,np.zeros(len(scan_points[0])),axis=0)
-            scan_points[0]=scan_points[0]*-1 # reversed x-axis
+            if flip:
+                scan_points=deepcopy(all_scan_points[scan_i].T)
+            else:
+                scan_points=deepcopy(all_scan_points[scan_i])
+            if scanner=='mti':
+                scan_points = np.insert(scan_points,1,np.zeros(len(scan_points[0])),axis=0)
+                scan_points[0]=scan_points[0]*-1 # reversed x-axis
+            else:
+                scan_points = np.insert(scan_points,0,np.zeros(len(scan_points[0])),axis=0)
+            
+            
             scan_points = scan_points.T
             ## get the points closed to origin
             scan_points = np.transpose(np.matmul(T_rob_positioner_top.R,np.transpose(scan_points)))+T_rob_positioner_top.p
@@ -192,7 +203,6 @@ class ScanProcess():
         return pcd_combined
     
     def pcd_noise_remove(self,pcd_combined,voxel_down_flag=True,voxel_size=0.1,crop_flag=True,min_bound=(-50,-30,-10),max_bound=(50,30,50),\
-                         crop_path_flag=False,curve_relative=None,\
                          outlier_remove=True,nb_neighbors=40,std_ratio=0.5,cluster_based_outlier_remove=True,cluster_neighbor=0.75,min_points=50*4):
 
         # visualize_pcd([pcd_combined])
@@ -224,7 +234,7 @@ class ScanProcess():
         
         return pcd_combined
 
-    def pcd2dh_old(self,scanned_points,last_scanned_points,curve_relative,robot_weld=None,q_weld=None,ph_param=None,drawing=False):
+    def pcd2dh_compare(self,scanned_points,last_scanned_points,curve_relative,robot_weld=None,q_weld=None,ph_param=None,drawing=False):
 
         ##### cross section parameters
         # resolution_z=0.1
@@ -305,11 +315,12 @@ class ScanProcess():
         curve_i=0
         total_curve_i = len(curve_relative)
         dh=[]
+        z_height=[]
         for curve_wp in curve_relative:
             if np.all(curve_wp==curve_relative[-1]):
-                wp_R = direction2R(-1*curve_wp[3:],curve_wp[:3]-curve_relative[curve_i-1][:3])
+                wp_R = direction2R_x(-1*curve_wp[3:],curve_wp[:3]-curve_relative[curve_i-1][:3])
             else:
-                wp_R = direction2R(-1*curve_wp[3:],curve_relative[curve_i+1][:3]-curve_wp[:3])
+                wp_R = direction2R_x(-1*curve_wp[3:],curve_relative[curve_i+1][:3]-curve_wp[:3])
 
             sp_lamx=deepcopy(scanned_points)
             ## transform the scanned points to waypoints
@@ -349,8 +360,8 @@ class ScanProcess():
                 this_points_z=np.nan
                 last_points_z=np.nan
             
-            
             this_dh = np.mean(this_points_z)-np.mean(last_points_z)
+            this_zheight = np.mean(this_points_z)
 
             dh_max=7
             dh_min=-2
@@ -359,6 +370,7 @@ class ScanProcess():
             #     this_dh=np.nan
 
             dh.append(this_dh)
+            z_height.append(this_zheight)
 
             if drawing:
                 ## paint pcd for visualization
@@ -383,11 +395,19 @@ class ScanProcess():
                     dh[curve_i]=np.nanmean(dh[-2*window_nan:])
                 else:
                     dh[curve_i]=np.nanmean(dh[curve_i-window_nan:curve_i+window_nan])
+            if np.isnan(z_height[curve_i]):
+                if curve_i<window_nan:
+                    z_height[curve_i]=np.nanmean(z_height[0:2*window_nan])
+                elif curve_i>len(z_height)-window_nan:
+                    z_height[curve_i]=np.nanmean(z_height[-2*window_nan:])
+                else:
+                    z_height[curve_i]=np.nanmean(z_height[curve_i-window_nan:curve_i+window_nan])
         # input(dh)
 
         curve_relative=np.array(curve_relative)
         lam = calc_lam_cs(curve_relative[:,:3])
-        profile_height = np.array([lam,dh]).T   
+        profile_dh = np.array([lam,dh]).T 
+        profile_height = np.array([lam,z_height]).T   
 
         if drawing:
             path_points.transform(H_from_RT(np.eye(3),[0,0,0.0001]))
@@ -396,9 +416,9 @@ class ScanProcess():
             draw_obj = []
             draw_obj.extend(path_viz_frames)
             draw_obj.extend([scanned_points_draw,path_points,last_scanned_points_draw,last_path_points])
-            # visualize_pcd(draw_obj)
+            visualize_pcd(draw_obj)
         
-        return profile_height
+        return profile_dh,profile_height
     
     def pcd2dh(self,scanned_points,curve_relative,robot_weld=None,q_weld=None,ph_param=None,drawing=False):
 
@@ -441,7 +461,7 @@ class ScanProcess():
 
         # create the cropping polygon
         bounding_polygon=[]
-        radius_scale=0.55
+        radius_scale=0.8
         # radius_scale=0.2
         radius=np.mean(np.linalg.norm(np.diff(curve_relative[:,:3],axis=0),axis=1))*radius_scale
         print("height neighbor radius:",radius)
@@ -480,9 +500,9 @@ class ScanProcess():
         dh=[]
         for curve_wp in curve_relative:
             if np.all(curve_wp==curve_relative[-1]):
-                wp_R = direction2R(-1*curve_wp[3:],curve_wp[:3]-curve_relative[curve_i-1][:3])
+                wp_R = direction2R_x(-1*curve_wp[3:],curve_wp[:3]-curve_relative[curve_i-1][:3])
             else:
-                wp_R = direction2R(-1*curve_wp[3:],curve_relative[curve_i+1][:3]-curve_wp[:3])
+                wp_R = direction2R_x(-1*curve_wp[3:],curve_relative[curve_i+1][:3]-curve_wp[:3])
 
             sp_lamx=deepcopy(scanned_points)
             ## transform the scanned points to waypoints
@@ -507,8 +527,8 @@ class ScanProcess():
             
             this_dh = np.nanmean(this_points_z)
 
-            dh_max=7
-            dh_min=-2
+            dh_max=10
+            dh_min=-10
             this_dh = max(min(this_dh,dh_max),dh_min)
             # if this_dh>dh_max:
             #     this_dh=np.nan
@@ -547,7 +567,7 @@ class ScanProcess():
             draw_obj = []
             draw_obj.extend(path_viz_frames)
             draw_obj.extend([scanned_points_draw,path_points])
-            # visualize_pcd(draw_obj)
+            visualize_pcd(draw_obj)
         
         return profile_height
     
@@ -693,12 +713,55 @@ class ScanProcess():
             profile_height_arr.append(np.array([x,profile_height[x]]))
         profile_height_arr=np.array(profile_height_arr)
 
-        # print(profile_height_arr)
-        # print(profile_height_arr.shape)
-
         profile_height_arr_argsort = np.argsort(profile_height_arr[:,0])
         profile_height_arr=profile_height_arr[profile_height_arr_argsort]
         
         return profile_height_arr,Transz0_H
 
+    def scan2dh(self,scan,robot_q,target_p,crop_min=[-10,85],crop_max=[10,100],offset_z=2.2):
         
+        dbscan = DBSCAN(eps=0.5,min_samples=20)
+        ## remove not in interested region
+        st=time.time()
+        mti_pcd=np.delete(scan,scan[1]==0,axis=1)
+        mti_pcd=np.delete(mti_pcd,mti_pcd[1]<crop_min[1],axis=1)
+        mti_pcd=np.delete(mti_pcd,mti_pcd[1]>crop_max[1],axis=1)
+        mti_pcd=np.delete(mti_pcd,mti_pcd[0]<crop_min[0],axis=1)
+        mti_pcd=np.delete(mti_pcd,mti_pcd[0]>crop_max[0],axis=1)
+        mti_pcd[0]=-1*mti_pcd[0]
+        mti_pcd = mti_pcd.T
+        
+        # cluster based noise remove
+        dbscan.fit(mti_pcd)
+        n_clusters_ = len(set(dbscan.labels_))
+
+        if n_clusters_>1:
+            cluster_id = dbscan.labels_>=0
+            mti_pcd_noise_remove=mti_pcd[cluster_id]
+        else:
+            mti_pcd_noise_remove=mti_pcd
+        
+        # transform to R2TCP
+        T_R2TCP_S1TCP=self.positioner.fwd(robot_q[6:],world=True).inv()*self.robot.fwd(robot_q[:6],world=True)
+        target_z = np.array(target_p)
+        largest_id = np.argsort(mti_pcd_noise_remove[:,1])[:10]
+        point_location = np.mean(mti_pcd_noise_remove[largest_id],axis=0)
+        point_location_z_R2TCP = deepcopy(point_location[1])
+        point_location=np.insert(point_location,1,0)
+        point_location = np.matmul(T_R2TCP_S1TCP.R,point_location)+T_R2TCP_S1TCP.p
+        point_location[2]=point_location[2]-offset_z
+
+        delta_h = (target_z[2]-point_location[2])
+
+        # for cluster_i in range(n_clusters_-1):
+        #     cluster_id = dbscan.labels_==cluster_i
+        #     plt.scatter(-1*mti_pcd[cluster_id][:,0],mti_pcd[cluster_id][:,1])
+        # plt.scatter(-1*mti_pcd[:,0],mti_pcd[:,1])
+        # # plt.axhline(y = target_z[2], color = 'r', linestyle = '-')
+        # plt.axhline(y = point_location_z_R2TCP-delta_h, color = 'r', linestyle = '-')
+        # plt.xlim((-30,30))
+        # # plt.ylim((50,120))
+        # plt.ylim((0,120))
+        # plt.show()
+
+        return delta_h,point_location
