@@ -41,7 +41,6 @@ These codes/algorithms are used in the main execution codes. (Go to folder ```sc
 
 * ```weld_dh2v.py``` The code computes deposition height given the torch speed or vice versa for three metals used in the project.
 * ```weldCorrectionStrategy.py``` The code includes scan-n-print correction strategies given the current scanned results and the target deposition height.
-* ```weldRRsensor.py``` A compact function to include all sensor interfaces.
 * ```WeldScan.py``` A compact function to execute a robot trajectory given the joint space trajectory and breakpoints.
 * ```scanPathGen.py``` Given the weld curve, generate cartesian scanning path and the corresponding joint space trajecotries.
 * ```scanProcess.py``` Given the scanned points and the corresponding robot joints, generates the 3D point clouds and deposition height.
