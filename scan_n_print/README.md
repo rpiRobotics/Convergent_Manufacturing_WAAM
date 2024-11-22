@@ -1,6 +1,15 @@
 # Scan-n-Print
 
-This folder includes all codes performing welding motion. 
+<p align="center">
+<img src="doc/testbed_single.png" alt="Alt Text" width="400" height="auto">
+<img src="doc/weld_scan.png" alt="Alt Text" width="400" height="auto">
+</p>
+
+We mounted MTI 2D laser scanner 
+<img src="../images/MTI.png" alt="Alt Text" width="50" height="auto">
+on the second robot to evaluate the WAAM layer height profile. 
+
+We first conducted experiments of height deposition vs. torch velocity and feed-rate to estabilish a [model](). We then use the model during WAAM process along with MTI scanned height profile to achieve a flat deposition surface.
 
 ### Pre-request
 
