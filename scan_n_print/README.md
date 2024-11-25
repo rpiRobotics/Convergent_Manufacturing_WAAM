@@ -44,6 +44,21 @@ python streaming_scan_control.py
 
 ## Analyzation scripts
 
+* Wall geometry scan-n-print
+```
+python read_weld_scan_data.py
+```
+
+* Complex geometry scan-n-print
+```
+python read_geoemtry_scan.py
+```
+
+* continuous scan-n-print
+```
+python read_streaming_online.py
+```
+
 ## Datasets
 
 Datasets can be found [here](https://rpi.box.com/s/c1w938dqypb7zt1a9em5qpaf17ukjf0s)
