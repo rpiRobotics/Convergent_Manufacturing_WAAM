@@ -11,13 +11,13 @@ on the second robot to evaluate the WAAM layer height profile.
 
 We first conducted experiments of height deposition vs. torch velocity and feed-rate to estabilish a [model](). We then use the model during WAAM process along with MTI scanned height profile to achieve a flat deposition surface.
 
-### Pre-request
+## Pre-request
 
-* Data curve
+* Data curves
 * Robot definition files
 * Welding and scanning joint space trajectory [here](https://github.com/rpiRobotics/Convergent_Manufacturing_WAAM/tree/main/redundancy_resolution)
 
-### Hardware requirements
+## Hardware requirements
 
 * Motoman robots
 * Fronius welder
@@ -25,7 +25,7 @@ We first conducted experiments of height deposition vs. torch velocity and feed-
 * Flir thermal camera
 * Microphone
 
-### Execution
+## Execution
 
 * Wall geometry scan-n-print
 ```
@@ -42,7 +42,13 @@ python weld_geometry_scan.py
 python streaming_scan_control.py
 ```
 
-### Helper function
+## Analyzation scripts
+
+## Datasets
+
+Datasets can be found [here](https://rpi.box.com/s/c1w938dqypb7zt1a9em5qpaf17ukjf0s)
+
+## Helper function
 
 These codes/algorithms are used in the main execution codes. (Go to folder ```scan/``` for scanning codes.)
 
